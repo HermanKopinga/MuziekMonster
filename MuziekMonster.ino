@@ -8,8 +8,7 @@
 // pin definitions
 const int digital_pin[] = {  8, 9, 10,   11, 12, 13,    18, 19, 20,    21, 22, 23,    28, 29, 30, 31,      32, 33, 34, 35,     2, 3, 4, 5, 17,    36, 37};
 const int notepincount = 27;
-const int pcpincount = 0;
-const int numberofpins = notepincount + pcpincount - 1;
+const int numberofpins = notepincount - 1;
 
 const int analog_pin[] = { A4, A5, A6, A7, A3, A2, A1, A0 };
 const int analogpins = 8 - 1;
@@ -205,18 +204,6 @@ void fcnProcessButtons() {
           Serial.println(String("MIDI note off: ") + digital_note[mode][b] + String(" channel: ") + digital_chan[mode][b]);
           usbMIDI.send_now();
         }
-      }
-      else {
-        // The program change buttons are the rest of the digital_pin array.
-        if (state == false)
-        {
-          usbMIDI.sendProgramChange(digital_note[mode][b], digital_chan[mode][b]);
-          Serial.print("MIDI Program Change: ");
-          Serial.print(digital_note[mode][b]);
-          Serial.print(" chan: ");
-          Serial.println(digital_chan[mode][b]);          
-          usbMIDI.send_now();          
-        }  
       }
       digital_stored_state[mode][b] = state;
     }
