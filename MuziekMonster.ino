@@ -193,17 +193,14 @@ void fcnProcessButtons() {
     digital_debouncer[b].update();
     boolean state = digital_debouncer[b].read();
     if (state != digital_stored_state[mode][b]) {
-      // The notes are the first in the digital_pin array.
-      if (b < notepincount){ 
-        if (state == false) {
-          usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, digital_chan[mode][b]);
-          Serial.println(String("MIDI note on: ") + digital_note[mode][b] + String(" channel: ") + digital_chan[mode][b]);
-          usbMIDI.send_now();
-        } else {
-          usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, digital_chan[mode][b]);
-          Serial.println(String("MIDI note off: ") + digital_note[mode][b] + String(" channel: ") + digital_chan[mode][b]);
-          usbMIDI.send_now();
-        }
+      if (state == false) {
+        usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, digital_chan[mode][b]);
+        Serial.println(String("MIDI note on: ") + digital_note[mode][b] + String(" channel: ") + digital_chan[mode][b]);
+        usbMIDI.send_now();
+      } else {
+        usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, digital_chan[mode][b]);
+        Serial.println(String("MIDI note off: ") + digital_note[mode][b] + String(" channel: ") + digital_chan[mode][b]);
+        usbMIDI.send_now();
       }
       digital_stored_state[mode][b] = state;
     }
