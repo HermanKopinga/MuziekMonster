@@ -60,13 +60,12 @@ Bounce digital_debouncer[] = {
  
 // MIDI settings
 const int midi_vel = 100;
+const int midi_chan = 1;
 
 int beat;
 
 const int digital_note[] =   { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    36, 49, 50, 51,     48, 37, 38, 39,     72, 73, 74, 75, 60,    63, 61};
-/*const byte digital_chan[] =  {  2,  2,  2,     2,  2,  2,     1,  1,  1,     1,  1,  1,     1,  1,  1,  1,      1,  1,  1,  1,      1,  1,  1,  1,  3,     1,  1};*/
 const int analog_control[] = { 70, 21, 25, 24,  0,  1,  2,  3,  4,  5,  6 };
-/*const byte analog_chan[] =   {  1,  1,  2,  1,  1,  1,  1,  1,  1,  1,  1 };*/
  
 const byte beat_leds[2][4] ={{ 27,  0,  1, 15 },
                              { 25, 26, 24, 14 }};
@@ -88,9 +87,7 @@ void setup() {
     Serial.print(" on teensy pin ");
     Serial.print(digital_pin[b]);
     Serial.print(" as MIDI note ");
-    Serial.print(digital_note[b]);
-    Serial.print(" on channel ");
-    Serial.println(digital_chan[b]);    
+    Serial.println(digital_note[b]);
   }
   
   // analog pins
@@ -100,9 +97,7 @@ void setup() {
     Serial.print(" on teensy pin ");
     Serial.print(analog_pin[b]);
     Serial.print(" as MIDI CC ");
-    Serial.print(analog_control[b]);
-    Serial.print(" on channel ");
-    Serial.println(analog_chan[b]);
+    Serial.println(analog_control[b]);
     analog_stored_state[b] = 0;     
   }
   
@@ -112,9 +107,7 @@ void setup() {
     Serial.print(" on 4051 pin ");
     Serial.print(analog_pin[b]);
     Serial.print(" as MIDI CC ");
-    Serial.print(analog_control[b]);
-    Serial.print(" on channel ");
-    Serial.println(analog_chan[b]);
+    Serial.println(analog_control[b]);
     analog_stored_state[b] = 0; 
   }
   
@@ -157,12 +150,12 @@ void loop() {
     boolean state = digital_debouncer[b].read();
     if (state != digital_stored_state[b]) {
       if (state == false) {
-        usbMIDI.sendNoteOn(digital_note[b], midi_vel, digital_chan[b]);
+        usbMIDI.sendNoteOn(digital_note[b], midi_vel, midi_chan);
         /*Serial.print("MIDI note on: ");*/
         Serial.print("On: ");
         Serial.println(digital_note[b]);
       } else {
-        usbMIDI.sendNoteOff(digital_note[b], midi_vel, digital_chan[b]);
+        usbMIDI.sendNoteOff(digital_note[b], midi_vel, midi_chan);
         /*Serial.print("MIDI note off: ");
         Serial.println(digital_note[b]);*/
       }
@@ -176,14 +169,8 @@ void loop() {
     if (analog_state - analog_stored_state[b] >= analog_threshold || analog_stored_state[b] - analog_state >= analog_threshold) {
    //if (abs(analog_state - analog_stored_state[b] >= analog_threshold)) {   // 20130526: correct the typo & use form pointed out by grivvr in the comments
       int scaled_value = analog_state / analog_scale;
-      if (analog_control[b] == 99) {
-        usbMIDI.sendPitchBend(scaled_value, analog_chan[b]);
-      }
-      else {
-        usbMIDI.sendControlChange(analog_control[b], scaled_value, analog_chan[b]);
-      }
+      usbMIDI.sendControlChange(analog_control[b], scaled_value, midi_chan);
   
-      //usbMIDI.sendControlChange(analog_control[b], scaled_value, analog_chan[b]);
       Serial.print("analog value ");
       Serial.print(analog_control[b]); 
       Serial.print(": ");
@@ -210,7 +197,7 @@ void loop() {
 
     if (analog_state - analog_stored_state[loop4051+4] >= analog_threshold || analog_stored_state[loop4051+4] - analog_state >= analog_threshold) {
       int scaled_value = analog_state / analog_scale;
-      usbMIDI.sendControlChange(analog_control[loop4051+4], scaled_value, analog_chan[loop4051+4]);
+      usbMIDI.sendControlChange(analog_control[loop4051+4], scaled_value, midi_chan);
 
       Serial.print("analog 4051 ");
       Serial.print(analog_control[loop4051+4]); 
