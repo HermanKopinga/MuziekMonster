@@ -1,28 +1,32 @@
 #include <Bounce.h>
  
 /*
-      DJ Controller test 002
-      Source: http://redbinary.com/pacmod-midi-dj-controller/
 */
  
 // pin definitions
-const int digital_pin[] = {  8, 9, 10,   11, 12, 13,    18, 19, 20,    21, 22, 23,    28, 29, 30, 31,      32, 33, 34, 35,     2, 3, 4, 5, 17,    36, 37};
-const int notepincount = 27;
-const int numberofpins = notepincount - 1;
-
-const int analog_pin[] = { A4, A5, A6, A7, A3, A2, A1, A0 };
-const int analogpins = 8 - 1;
-
+const int digital_pin[] = { 8, 9, 10,   11, 12, 13,    18, 19, 20,    21, 22, 23,    28, 29, 30, 31,      32, 33, 34, 35,     2, 3, 4, 5, 17,    36, 37};
+const int analog_pin[] = { A4, A5, A7, A2, 0, 1, 2, 3, 4, 5, 6 }; // 4 on Teensy, 7 on 4051
+ 
 // variables for the states of the controls
-boolean digital_stored_state[6][numberofpins];
-int analog_stored_state[6][analogpins];
+boolean digital_stored_state[27];
+int analog_stored_state[11];
  
 // amount of change that constitutes sending a midi message
-const int analog_threshold = 15;
+const int analog_threshold = 10;
 const int analog_scale = 8;
 
+// 4051 stuff
+const byte s0 = 17;
+const byte s1 = 7;
+const byte s2 = 6;
+const byte analog4051 = A6;
+byte loop4051 = 0;
+bool r0 = 0;
+bool r1 = 0;
+bool r2 = 0;
+ 
 // Debounce
-const long debounceDelay = 20;
+long debounceDelay = 20;
  
 Bounce digital_debouncer[] = {
       Bounce(digital_pin[0], debounceDelay),
@@ -51,59 +55,74 @@ Bounce digital_debouncer[] = {
       Bounce(digital_pin[23], debounceDelay),
       Bounce(digital_pin[24], debounceDelay),
       Bounce(digital_pin[25], debounceDelay),
-      Bounce(digital_pin[26], debounceDelay)      
+      Bounce(digital_pin[26], debounceDelay)
 };
-
-// 0 is default mode
-// 1 is alternate mode
-//const int modePin = 6;
-int mode = 0;
-int modeState = 1;
-int modeStored = 0;
-
  
 // MIDI settings
-int midi_ch = 3;
-int midi_vel = 100;
-
-unsigned long t=0;
+const int midi_vel = 100;
 
 int beat;
 
-const int digital_note[6][27] =  {{ 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    41, 40, 38, 36,     53, 52, 50, 48,     79, 76, 77, 74, 72,    70, 71}, 
-                                  { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    41, 40, 38, 36,     53, 52, 50, 48,     79, 76, 77, 74, 72,    70, 71},
-                                  { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    41, 40, 38, 36,     53, 52, 50, 48,     79, 76, 77, 74, 72,    70, 71},
-                                  { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    41, 40, 38, 36,     53, 52, 50, 48,     79, 76, 77, 74, 72,    70, 71},
-                                  { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    41, 40, 38, 36,     53, 52, 50, 48,     79, 76, 77, 74, 72,    70, 71},
-                                  { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    41, 40, 38, 36,     53, 52, 50, 48,     79, 76, 77, 74, 72,    70, 71}};
-const int digital_chan[6][27] =  {{  2,  2,  2,     2,  2,  2,     1,  1,  1,     1,  1,  1,     1,  1,  1,  1,      1,  1,  1,  1,      1,  1,  1,  1,  1,     1,  1},
-                                  {  2,  2,  2,     2,  2,  2,     1,  1,  1,     1,  1,  1,     1,  1,  1,  1,      1,  1,  1,  1,      1,  1,  1,  1,  1,     1,  1},
-                                  {  2,  2,  2,     2,  2,  2,     1,  1,  1,     1,  1,  1,     1,  1,  1,  1,      1,  1,  1,  1,      1,  1,  1,  1,  1,     1,  1},
-                                  {  2,  2,  2,     2,  2,  2,     1,  1,  1,     1,  1,  1,     1,  1,  1,  1,      1,  1,  1,  1,      1,  1,  1,  1,  1,     1,  1},
-                                  {  2,  2,  2,     2,  2,  2,     1,  1,  1,     1,  1,  1,     1,  1,  1,  1,      1,  1,  1,  1,      1,  1,  1,  1,  1,     1,  1},
-                                  {  2,  2,  2,     2,  2,  2,     1,  1,  1,     1,  1,  1,     1,  1,  1,  1,      1,  1,  1,  1,      1,  1,  1,  1,  1,     1,  1}};
-const int analog_control[6][8] = {{ 70, 21, 22, 23, 24, 25, 76, 27 },
-                                  { 70, 21, 22, 23, 24, 25, 76, 27 },
-                                  { 70, 21, 22, 23, 24, 25, 76, 27 },
-                                  { 70, 21, 22, 23, 24, 25, 76, 27 },
-                                  { 70, 21, 22, 23, 24, 25, 76, 27 },
-                                  { 70, 21, 22, 23, 24, 25, 76, 27 }};                                  
-const int analog_chan[6][8] =    {{  1,  1,  1,  1,  1,  1,  1,  1 },
-                                  {  1,  1,  1,  1,  1,  1,  1,  1 },
-                                  {  1,  1,  1,  1,  1,  1,  1,  1 },
-                                  {  1,  1,  1,  1,  1,  1,  1,  1 },
-                                  {  1,  1,  1,  1,  1,  1,  1,  1 },
-                                  {  1,  1,  1,  1,  1,  1,  1,  1 }};                                  
- const int beat_leds[2][4] =     {{ 27,  0,  1, 15 },
-                                  { 25, 26, 24, 14 }};
-int beat_led_values[2][4] =      {{  0,  0,  0,  0 },
-                                  {  0,  0,  0,  0 }};
+const int digital_note[] =   { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    36, 49, 50, 51,     48, 37, 38, 39,     72, 73, 74, 75, 60,    63, 61};
+/*const byte digital_chan[] =  {  2,  2,  2,     2,  2,  2,     1,  1,  1,     1,  1,  1,     1,  1,  1,  1,      1,  1,  1,  1,      1,  1,  1,  1,  3,     1,  1};*/
+const int analog_control[] = { 70, 21, 25, 24,  0,  1,  2,  3,  4,  5,  6 };
+/*const byte analog_chan[] =   {  1,  1,  2,  1,  1,  1,  1,  1,  1,  1,  1 };*/
  
+const byte beat_leds[2][4] ={{ 27,  0,  1, 15 },
+                             { 25, 26, 24, 14 }};
+byte beat_led_values[2][4] ={{  0,  0,  0,  0 },
+                             {  0,  0,  0,  0 }};
+
 void setup() {
-  Serial.begin(38400);
+  Serial.begin(115200);
  
   // set the pin modes && zero saved states
   int b = 0;
+  
+  // digital pins
+  for (b = 0; b <= 26; b++) {
+    pinMode(digital_pin[b], INPUT_PULLUP);
+    digital_stored_state[b] = true;
+    Serial.print("Setup: digital pin index ");
+    Serial.print(b);
+    Serial.print(" on teensy pin ");
+    Serial.print(digital_pin[b]);
+    Serial.print(" as MIDI note ");
+    Serial.print(digital_note[b]);
+    Serial.print(" on channel ");
+    Serial.println(digital_chan[b]);    
+  }
+  
+  // analog pins
+  for (b = 0; b<= 3; b++) {
+    Serial.print("Setup: analog pin index ");
+    Serial.print(b);
+    Serial.print(" on teensy pin ");
+    Serial.print(analog_pin[b]);
+    Serial.print(" as MIDI CC ");
+    Serial.print(analog_control[b]);
+    Serial.print(" on channel ");
+    Serial.println(analog_chan[b]);
+    analog_stored_state[b] = 0;     
+  }
+  
+  for (b = 4; b<= 10; b++) {
+    Serial.print("Setup: analog pin index ");
+    Serial.print(b);
+    Serial.print(" on 4051 pin ");
+    Serial.print(analog_pin[b]);
+    Serial.print(" as MIDI CC ");
+    Serial.print(analog_control[b]);
+    Serial.print(" on channel ");
+    Serial.println(analog_chan[b]);
+    analog_stored_state[b] = 0; 
+  }
+  
+  // For 4051 
+  pinMode(17, OUTPUT);
+  pinMode( 7, OUTPUT);
+  pinMode( 6, OUTPUT);  
+  pinMode(analog4051, INPUT);
   
   // output pins
   pinMode(14, OUTPUT);
@@ -114,9 +133,8 @@ void setup() {
   pinMode(26, OUTPUT);    
   pinMode(27, OUTPUT);  
   pinMode( 0, OUTPUT);  
-  pinMode( 1, OUTPUT);  
-  pinMode( 6, OUTPUT);
-  pinMode( 7, OUTPUT);
+  pinMode( 1, OUTPUT); 
+  
   analogWrite(14, 0);
   analogWrite(15, 0);
   analogWrite(16, 32);
@@ -126,111 +144,88 @@ void setup() {
   analogWrite(27, 0);  
   analogWrite( 0, 0);  
   analogWrite( 1, 0);  
-  digitalWrite(6, 0);
-  digitalWrite(7, 0);
-  
-//  pinMode(modePin, INPUT_PULLUP);
-  
-  // digital pins
-  for (b = numberofpins; b >= 0; b--) {
-    pinMode(digital_pin[b], INPUT_PULLUP);
-    digital_stored_state[0][b] = false;
-    digital_stored_state[1][b] = false;
-    digital_stored_state[2][b] = false;
-    digital_stored_state[3][b] = false;    
-    digital_stored_state[4][b] = false;    
-    digital_stored_state[5][b] = false;    
-    digital_stored_state[6][b] = false;    
-    digital_stored_state[7][b] = false;    
-    Serial.print("setup: pin ");
-    Serial.println(b);
-  }
-  
-  // analog pins
-  for (b = analogpins; b>= 0; b--) {
-    analog_stored_state[0][b] = 0;
-    analog_stored_state[1][b] = 0;    
-    analog_stored_state[2][b] = 0;    
-    analog_stored_state[3][b] = 0;    
-    analog_stored_state[4][b] = 0;    
-    analog_stored_state[5][b] = 0;    
-    analog_stored_state[6][b] = 0;    
-    analog_stored_state[7][b] = 0;    
-  }
-  
-  //Serial.println("----------------");
-  //Serial.println("MIDI DJ Controller Test - setup");
-  //Serial.println("----------------");
+
 }
- 
  
 void loop() {
-  fcnProcessButtons();
-}
- 
-//Function to process the buttons
-void fcnProcessButtons() {
   int b = 0;
-  int type, note, velocity, channel, d1, d2;
-  int analog_state = 0;
-  
-/*  analog_state = analogRead(A3);
-  if (analog_state - modeStored >= analog_threshold || modeStored - analog_state >= analog_threshold) {
-    Serial.print("Mode_analog: ");
-    Serial.print(analog_state);
-    mode = analog_state/174;
-    Serial.print(" mode result: ");
-    Serial.println(mode);
-    modeStored = analog_state;
-  }*/
-  
-  ////////////////////////////////////////
-  //  S  e  n  d
-  ////////////////////////////////////////
+  int type, note, velocity, channel, d1, d2, beatindex, row;
   
   // digital pins
-  for (b = numberofpins; b >= 0; b--) {
+  for (b = 0; b <= 26; b++) {
     digital_debouncer[b].update();
     boolean state = digital_debouncer[b].read();
-    if (state != digital_stored_state[mode][b]) {
+    if (state != digital_stored_state[b]) {
       if (state == false) {
-        usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, digital_chan[mode][b]);
-        Serial.println(String("MIDI note on: ") + digital_note[mode][b] + String(" channel: ") + digital_chan[mode][b]);
-        usbMIDI.send_now();
+        usbMIDI.sendNoteOn(digital_note[b], midi_vel, digital_chan[b]);
+        /*Serial.print("MIDI note on: ");*/
+        Serial.print("On: ");
+        Serial.println(digital_note[b]);
       } else {
-        usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, digital_chan[mode][b]);
-        Serial.println(String("MIDI note off: ") + digital_note[mode][b] + String(" channel: ") + digital_chan[mode][b]);
-        usbMIDI.send_now();
+        usbMIDI.sendNoteOff(digital_note[b], midi_vel, digital_chan[b]);
+        /*Serial.print("MIDI note off: ");
+        Serial.println(digital_note[b]);*/
       }
-      digital_stored_state[mode][b] = state;
-    }
-  }
-  
-  // analog pins
-  for (b = analogpins; b >= 0; b--) {
-    analog_state = analogRead(analog_pin[b]);
-    if (analog_state - analog_stored_state[mode][b] >= analog_threshold || analog_stored_state[mode][b] - analog_state >= analog_threshold) {
-      int scaled_value = analog_state / analog_scale;
-      usbMIDI.sendControlChange(analog_control[mode][b], scaled_value, analog_chan[mode][b]);
-      usbMIDI.send_now();
-      Serial.print("analog value ");
-      Serial.print(b);
-      Serial.print(": ");
-      Serial.print(analog_state);
-      Serial.print(" scaled: ");
-      Serial.print(scaled_value);
-      Serial.print(" stored: ");
-      Serial.println(analog_stored_state[mode][b]);
-      analog_stored_state[mode][b] = analog_state;
+      digital_stored_state[b] = !digital_stored_state[b];
     }
   }
 
-  int beatindex, row;
+  // analog pins
+  for (b = 0; b <= 3; b++) {
+    int analog_state = analogRead(analog_pin[b]);
+    if (analog_state - analog_stored_state[b] >= analog_threshold || analog_stored_state[b] - analog_state >= analog_threshold) {
+   //if (abs(analog_state - analog_stored_state[b] >= analog_threshold)) {   // 20130526: correct the typo & use form pointed out by grivvr in the comments
+      int scaled_value = analog_state / analog_scale;
+      if (analog_control[b] == 99) {
+        usbMIDI.sendPitchBend(scaled_value, analog_chan[b]);
+      }
+      else {
+        usbMIDI.sendControlChange(analog_control[b], scaled_value, analog_chan[b]);
+      }
+  
+      //usbMIDI.sendControlChange(analog_control[b], scaled_value, analog_chan[b]);
+      Serial.print("analog value ");
+      Serial.print(analog_control[b]); 
+      Serial.print(": ");
+      Serial.print(analog_state);
+      Serial.print(" scaled: ");
+      Serial.println(scaled_value);
+      analog_stored_state[b] = analog_state;
+    }
+  }
+
+  // 4051 analog pins, 7 are connected.
+  for (loop4051 = 0; loop4051 <= 6; loop4051++) {
+
+    // select the bit  
+    r0 = bitRead(loop4051,0);
+    r1 = bitRead(loop4051,1);
+    r2 = bitRead(loop4051,2);
+
+    digitalWrite(s0, r0);
+    digitalWrite(s1, r1);
+    digitalWrite(s2, r2);
+
+    int analog_state = analogRead(analog4051);    
+
+    if (analog_state - analog_stored_state[loop4051+4] >= analog_threshold || analog_stored_state[loop4051+4] - analog_state >= analog_threshold) {
+      int scaled_value = analog_state / analog_scale;
+      usbMIDI.sendControlChange(analog_control[loop4051+4], scaled_value, analog_chan[loop4051+4]);
+
+      Serial.print("analog 4051 ");
+      Serial.print(analog_control[loop4051+4]); 
+      Serial.print(": ");
+      Serial.print(analog_state);
+      Serial.print(" scaled: ");
+      Serial.println(scaled_value);
+      analog_stored_state[loop4051+4] = analog_state;
+    }    
+  }
 
   ////////////////////////////////////////
   //  R  e  a  d
   ////////////////////////////////////////
-
+  
   if (usbMIDI.read()) {                    // Is there a MIDI message incoming ?
     byte type = usbMIDI.getType();
     switch (type) {
@@ -257,14 +252,14 @@ void fcnProcessButtons() {
         }
         if (channel == 1) {
           switch (note) {
-            case 41:              beatindex = 0;              row = 1;              break;
-            case 52:              beatindex = 1;              row = 1;              break;
-            case 50:              beatindex = 2;              row = 1;              break;
-            case 48:              beatindex = 3;              row = 1;              break;
-            case 53:              beatindex = 0;              row = 0;              break;
-            case 40:              beatindex = 1;              row = 0;              break;
-            case 38:              beatindex = 2;              row = 0;              break;
-            case 36:              beatindex = 3;              row = 0;              break;
+            case 36:              beatindex = 0;              row = 1;              break;
+            case 37:              beatindex = 1;              row = 1;              break;
+            case 38:              beatindex = 2;              row = 1;              break;
+            case 39:              beatindex = 3;              row = 1;              break;
+            case 48:              beatindex = 0;              row = 0;              break;
+            case 49:              beatindex = 1;              row = 0;              break;
+            case 50:              beatindex = 2;              row = 0;              break;
+            case 51:              beatindex = 3;              row = 0;              break;
             default:
               Serial.println("Whelp");
               break;
@@ -285,14 +280,14 @@ void fcnProcessButtons() {
         Serial.println(String("In Note Off: ch=") + channel + ", note=" + note + ", velocity=" + velocity);
         if (channel == 1) {
           switch (note) {
-            case 41:              beatindex = 0;              row = 1;              break;
-            case 52:              beatindex = 1;              row = 1;              break;
-            case 50:              beatindex = 2;              row = 1;              break;
-            case 48:              beatindex = 3;              row = 1;              break;
-            case 53:              beatindex = 0;              row = 0;              break;
-            case 40:              beatindex = 1;              row = 0;              break;
-            case 38:              beatindex = 2;              row = 0;              break;
-            case 36:              beatindex = 3;              row = 0;              break;
+            case 36:              beatindex = 0;              row = 1;              break;
+            case 37:              beatindex = 1;              row = 1;              break;
+            case 38:              beatindex = 2;              row = 1;              break;
+            case 39:              beatindex = 3;              row = 1;              break;
+            case 48:              beatindex = 0;              row = 0;              break;
+            case 49:              beatindex = 1;              row = 0;              break;
+            case 50:              beatindex = 2;              row = 0;              break;
+            case 51:              beatindex = 3;              row = 0;              break;            
             default:
               Serial.println("Whelp");
               break;
@@ -312,11 +307,5 @@ void fcnProcessButtons() {
         channel = usbMIDI.getChannel();
         Serial.println(String("In Message, type=") + type + ", data = " + d1 + " " + d2 + ", channel= " + channel);
     }
-    t = millis();
   }
-  if (millis() - t > 10000) {
-    t += 10000;
-    Serial.println("(inactivity)");
-  }  
 }
-
