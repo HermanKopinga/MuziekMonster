@@ -20,7 +20,6 @@ const byte s0 = 17;
 const byte s1 = 7;
 const byte s2 = 6;
 const byte analog4051 = A6;
-byte loop4051 = 0;
 bool r0 = 0;
 bool r1 = 0;
 bool r2 = 0;
@@ -58,14 +57,25 @@ Bounce digital_debouncer[] = {
       Bounce(digital_pin[26], debounceDelay)
 };
  
+// Mode switch provisions.
+// 0 is Powerpop
+// 1 is Hiphop
+// 3 is Hardcore
+byte mode = 0;
+byte modeStored = 0;
+
 // MIDI settings
 const int midi_vel = 100;
 const int midi_chan = 1;
 
 int beat;
 
-const int digital_note[] =   { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    36, 49, 50, 51,     48, 37, 38, 39,     72, 73, 74, 75, 60,    63, 61};
-const int analog_control[] = { 70, 21, 25, 24,  0,  1,  2,  3,  4,  5,  6 };
+const int digital_note[3][27] =  {{ 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    36, 49, 50, 51,     48, 37, 38, 39,     72, 73, 74, 75, 60,    63, 61},
+                                  { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    36, 49, 50, 51,     48, 37, 38, 39,     72, 73, 74, 75, 60,    63, 61},
+                                  { 60, 62, 64,    65, 67, 69,    60, 62, 64,    65, 67, 69,    36, 49, 50, 51,     48, 37, 38, 39,     72, 73, 74, 75, 60,    63, 61}};
+const int analog_control[3][27] = {{ 70, 21, 25, 24,  0,  1,  2,  3,  4,  5,  6 },
+                                   { 70, 21, 25, 24,  0,  1,  2,  3,  4,  5,  6 },
+                                   { 70, 21, 25, 24,  0,  1,  2,  3,  4,  5,  6 }};
  
 const byte beat_leds[2][4] ={{ 27,  0,  1, 15 },
                              { 25, 26, 24, 14 }};
@@ -87,7 +97,7 @@ void setup() {
     Serial.print(" on teensy pin ");
     Serial.print(digital_pin[b]);
     Serial.print(" as MIDI note ");
-    Serial.println(digital_note[b]);
+    Serial.println(digital_note[mode][b]);
   }
   
   // analog pins
@@ -97,7 +107,7 @@ void setup() {
     Serial.print(" on teensy pin ");
     Serial.print(analog_pin[b]);
     Serial.print(" as MIDI CC ");
-    Serial.println(analog_control[b]);
+    Serial.println(analog_control[mode][b]);
     analog_stored_state[b] = 0;     
   }
   
@@ -107,7 +117,7 @@ void setup() {
     Serial.print(" on 4051 pin ");
     Serial.print(analog_pin[b]);
     Serial.print(" as MIDI CC ");
-    Serial.println(analog_control[b]);
+    Serial.println(analog_control[mode][b]);
     analog_stored_state[b] = 0; 
   }
   
@@ -142,7 +152,7 @@ void setup() {
  
 void loop() {
   int b = 0;
-  int type, note, velocity, channel, d1, d2, beatindex, row;
+  int type, note, velocity, channel, d1, d2, beatindex, row, analog_state;
   
   // digital pins
   for (b = 0; b <= 26; b++) {
@@ -150,12 +160,12 @@ void loop() {
     boolean state = digital_debouncer[b].read();
     if (state != digital_stored_state[b]) {
       if (state == false) {
-        usbMIDI.sendNoteOn(digital_note[b], midi_vel, midi_chan);
+        usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, midi_chan);
         /*Serial.print("MIDI note on: ");*/
         Serial.print("On: ");
-        Serial.println(digital_note[b]);
+        Serial.println(digital_note[mode][b]);
       } else {
-        usbMIDI.sendNoteOff(digital_note[b], midi_vel, midi_chan);
+        usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, midi_chan);
         /*Serial.print("MIDI note off: ");
         Serial.println(digital_note[b]);*/
       }
@@ -165,14 +175,14 @@ void loop() {
 
   // analog pins
   for (b = 0; b <= 3; b++) {
-    int analog_state = analogRead(analog_pin[b]);
+    analog_state = analogRead(analog_pin[b]);
     if (analog_state - analog_stored_state[b] >= analog_threshold || analog_stored_state[b] - analog_state >= analog_threshold) {
    //if (abs(analog_state - analog_stored_state[b] >= analog_threshold)) {   // 20130526: correct the typo & use form pointed out by grivvr in the comments
       int scaled_value = analog_state / analog_scale;
-      usbMIDI.sendControlChange(analog_control[b], scaled_value, midi_chan);
+      usbMIDI.sendControlChange(analog_control[mode][b], scaled_value, midi_chan);
   
       Serial.print("analog value ");
-      Serial.print(analog_control[b]); 
+      Serial.print(analog_control[mode][b]); 
       Serial.print(": ");
       Serial.print(analog_state);
       Serial.print(" scaled: ");
@@ -182,31 +192,45 @@ void loop() {
   }
 
   // 4051 analog pins, 7 are connected.
-  for (loop4051 = 0; loop4051 <= 6; loop4051++) {
+  for (b = 0; b <= 6; b++) {
 
     // select the bit  
-    r0 = bitRead(loop4051,0);
-    r1 = bitRead(loop4051,1);
-    r2 = bitRead(loop4051,2);
+    r0 = bitRead(b,0);
+    r1 = bitRead(b,1);
+    r2 = bitRead(b,2);
 
     digitalWrite(s0, r0);
     digitalWrite(s1, r1);
     digitalWrite(s2, r2);
 
-    int analog_state = analogRead(analog4051);    
+    analog_state = analogRead(analog4051);    
 
-    if (analog_state - analog_stored_state[loop4051+4] >= analog_threshold || analog_stored_state[loop4051+4] - analog_state >= analog_threshold) {
-      int scaled_value = analog_state / analog_scale;
-      usbMIDI.sendControlChange(analog_control[loop4051+4], scaled_value, midi_chan);
-
-      Serial.print("analog 4051 ");
-      Serial.print(analog_control[loop4051+4]); 
-      Serial.print(": ");
-      Serial.print(analog_state);
-      Serial.print(" scaled: ");
-      Serial.println(scaled_value);
-      analog_stored_state[loop4051+4] = analog_state;
-    }    
+    if (b == 0) { 
+      // Read Mode Switch.
+      if (analog_state - modeStored >= analog_threshold || modeStored - analog_state >= analog_threshold) {
+        Serial.print("Mode_analog: ");
+        Serial.print(analog_state);
+        mode = analog_state/174;
+        Serial.print(" mode result: ");
+        Serial.println(mode);
+        modeStored = analog_state;
+      }
+    }
+    else {
+      if (analog_state - analog_stored_state[b+4] >= analog_threshold || analog_stored_state[b+4] - analog_state >= analog_threshold) {
+        int scaled_value = analog_state / analog_scale;
+  
+        usbMIDI.sendControlChange(analog_control[mode][b+4], scaled_value, midi_chan);
+  
+        Serial.print("analog 4051 ");
+        Serial.print(analog_control[mode][b+4]); 
+        Serial.print(": ");
+        Serial.print(analog_state);
+        Serial.print(" scaled: ");
+        Serial.println(scaled_value);
+        analog_stored_state[b+4] = analog_state;
+      }  
+    }  
   }
 
   ////////////////////////////////////////
