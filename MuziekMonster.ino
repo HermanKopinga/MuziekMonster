@@ -231,8 +231,24 @@ void loop() {
         Serial.print(analog_state);
         mode = analog_state/174;
         Serial.print(" mode result: ");
-        Serial.println(mode);
+        Serial.print(mode);
         modeStored = analog_state;
+        Serial.print(". Sending: ");
+        Serial.print(digital_note[mode][26]);
+        Serial.print(" "); 
+        Serial.print(digital_note[mode][26]);
+        Serial.print(" ");
+        Serial.println(digital_note[mode][25]);
+        usbMIDI.sendNoteOn(digital_note[mode][26], midi_vel, midi_chan);
+        usbMIDI.sendNoteOff(digital_note[mode][26], midi_vel, midi_chan);
+        usbMIDI.send_now();
+        delay(100);
+        usbMIDI.sendNoteOn(digital_note[mode][26], midi_vel, midi_chan);
+        usbMIDI.sendNoteOff(digital_note[mode][26], midi_vel, midi_chan);
+        usbMIDI.send_now();        
+        delay(100);        
+        usbMIDI.sendNoteOn(digital_note[mode][25], midi_vel, midi_chan);      
+        usbMIDI.sendNoteOff(digital_note[mode][25], midi_vel, midi_chan);        
       }
     }
     else {
