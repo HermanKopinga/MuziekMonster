@@ -1,25 +1,26 @@
 #include <Bounce.h>
+#include "Tlc5940.h"
  
 /*
 */
  
 // pin definitions
-const int digital_pin[] = { 8, 9, 10,   11, 12, 13,    18, 19, 20,    21, 22, 23,    28, 29, 30, 31,      32, 33, 34, 35,     2, 3, 4, 5,   41,   36,   37};
-const int analog_pin[] = { A0, A4, A5, A7, A2, 0, 1, 2, 3, 4, 5, 6 }; // 5 on Teensy, 7 on 4051
+const int digital_pin[] = { 23, 22, 21,    20, 19, 18,    2, 0, 3,   1, 4, 5,   32, 33, 28, 29,      30, 31, 34, 35,     9, 10, 11, 12,     27,   36,   37};
+const int analog_pin[] = { A0, A2, A2, A2, A1, 0, 1, 2, 3, 4, 5, 6 }; // 5 on Teensy, 7 on 4051
  
 // variables for the states of the controls
 boolean digital_stored_state[27];
 int analog_stored_state[12];
  
 // amount of change that constitutes sending a midi message
-const int analog_threshold = 10;
+const int analog_threshold = 240;
 const int analog_scale = 8;
 
 // 4051 stuff
-const byte s0 = 17;
+const byte s0 = 6;
 const byte s1 = 7;
-const byte s2 = 6;
-const byte analog4051 = A6;
+const byte s2 = 8;
+const byte analog4051 = A7;
 bool r0 = 0;
 bool r1 = 0;
 bool r2 = 0;
@@ -70,10 +71,10 @@ const int midi_chan = 1;
 
 int beat;
 
-                                     // Accoorden               // Bas                      // Drumcomputer                        // Samples         //Synth  // Start  //stop
+                                     // Bas                     // Accoorden                // Drumcomputer                        // Samples         //Synth  // Start  //stop
 const int digital_note[3][27] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 31, 33,     0,  1,  2,  3,      4,  5,  6,  7,     15, 14, 13, 12,    61,      9,        8},
                                   {  60, 62, 64, 65, 67, 69,    48, 50, 52, 53, 55, 57,     0,  1,  2,  3,      4,  5,  6,  7,     19, 18, 17, 16,    63,      10,       8},
-                                  {  84, 86, 88, 89, 91, 93,    72, 74, 76, 77, 79, 81,     0,  1,  2,  3,      4,  5,  6,  7,     23, 22, 21, 20,    65,      11,       8}};                                  
+                                  {  84, 86, 88, 89, 91, 93,    72, 74, 76, 77, 79, 81,     0,  1,  2,  3,      4,  5,  6,  7,     23, 22, 21, 20,    66,      11,       8}};                                  
 
 
 /*
@@ -92,14 +93,16 @@ const int analog_control[3][27] = {{ -1, 70, 21, 22, 71,  0,  74,  75,  28,  4, 
                                    { -1, 70, 21, 22, 71,  0,  74,  75,  28,  4,  73,  6 },
                                    { -1, 70, 21, 22, 71,  0,  74,  75,  28,  4,  73,  6 }};
  
-const byte beat_leds[2][4] ={{ 27,  0,  1, 15 },
-                             { 25, 26, 24, 14 }};
+const byte beat_leds[2][4] ={{  7,  8,  9, 10 },
+                             { 11, 12, 13, 14 }};
 byte beat_led_values[2][4] ={{  0,  0,  0,  0 },
                              {  0,  0,  0,  0 }};
 
 void setup() {
   Serial.begin(115200);
- 
+
+  Tlc.init();
+
   // set the pin modes && zero saved states
   int b = 0;
   
@@ -137,32 +140,13 @@ void setup() {
   }
   
   // For 4051 
-  pinMode(17, OUTPUT);
-  pinMode( 7, OUTPUT);
-  pinMode( 6, OUTPUT);  
+  pinMode(s0, OUTPUT);
+  pinMode(s1, OUTPUT);
+  pinMode(s2, OUTPUT);  
   pinMode(analog4051, INPUT);
   
   // output pins
-  pinMode(14, OUTPUT);
-  pinMode(15, OUTPUT);
-  pinMode(16, OUTPUT); // Status
-  pinMode(24, OUTPUT);  
-  pinMode(25, OUTPUT);  
-  pinMode(26, OUTPUT);    
-  pinMode(27, OUTPUT);  
-  pinMode( 0, OUTPUT);  
-  pinMode( 1, OUTPUT); 
-  
-  analogWrite(14, 0);
-  analogWrite(15, 0);
-  analogWrite(16, 32);
-  analogWrite(24, 0);  
-  analogWrite(25, 0);  
-  analogWrite(26, 0);  
-  analogWrite(27, 0);  
-  analogWrite( 0, 0);  
-  analogWrite( 1, 0);  
-
+  //ToDo: 5940 stuff goes here.
 }
  
 void loop() {
@@ -175,9 +159,12 @@ void loop() {
     boolean state = digital_debouncer[b].read();
     if (state != digital_stored_state[b]) {
       if (state == false) {
+        // For identifying the buttons during setup.
+        Serial.print("Pin: ");
+        Serial.print(digital_pin[b]);
         usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, midi_chan);
         /*Serial.print("MIDI note on: ");*/
-        Serial.print("On: ");
+        Serial.print(" On: ");
         Serial.println(digital_note[mode][b]);
       } else {
         usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, midi_chan);
@@ -194,7 +181,7 @@ void loop() {
     if (analog_state - analog_stored_state[b] >= analog_threshold || analog_stored_state[b] - analog_state >= analog_threshold) {
       int scaled_value = analog_state / analog_scale;
       if (analog_pin[b] == A0) {
-        usbMIDI.sendPitchBend(analog_state * 16, 1);
+      usbMIDI.sendPitchBend(analog_state * 16, 1);
         Serial.print("Pitch ");
       }
       else {
@@ -292,11 +279,12 @@ void loop() {
           if (beat == 1) {
             lastbeat = 4;
           }
-          analogWrite(beat_leds[0][lastbeat - 1], beat_led_values[0][lastbeat - 1]);
-          analogWrite(beat_leds[0][beat - 1], beat_led_values[0][beat - 1] + 128);
+          Tlc.set(beat_leds[0][lastbeat - 1], beat_led_values[0][lastbeat - 1]);
+          Tlc.set(beat_leds[0][beat - 1], beat_led_values[0][beat - 1] + 128);
 
-          analogWrite(beat_leds[1][lastbeat - 1], beat_led_values[1][lastbeat - 1]);
-          analogWrite(beat_leds[1][beat - 1], beat_led_values[1][beat - 1] + 128);
+          Tlc.set(beat_leds[1][lastbeat - 1], beat_led_values[1][lastbeat - 1]);
+          Tlc.set(beat_leds[1][beat - 1], beat_led_values[1][beat - 1] + 128);
+          Tlc.update();
           Serial.println(String("Beat: ") + beat + String(" Lastbeat: ") + lastbeat);
         }
         // A note we are 'following' is switched on.
@@ -316,12 +304,13 @@ void loop() {
               break;
           } 
           beat_led_values[row][beatindex] = 16 ;
-          if (beat == beatindex + 1) {
-            analogWrite(beat_leds[row][beatindex], 32);                      
+          if (beat -1 == beatindex) {
+            Tlc.set(beat_leds[row][beatindex], 32);
           }
           else {
-            analogWrite(beat_leds[row][beatindex], 16);          
-          }          
+            Tlc.set(beat_leds[row][beatindex], 16);
+          }
+          Tlc.update();          
         }
         break;
       case 0: // NoteOff
@@ -344,12 +333,13 @@ void loop() {
               break;
           } 
           beat_led_values[row][beatindex] = 0 ;
-          if (beat == beatindex + 1) {
-            analogWrite(beat_leds[row][beatindex], 32);                      
+          if (beat -1 == beatindex) {
+            Tlc.set(beat_leds[row][beatindex], 32);
           }
           else {
-            analogWrite(beat_leds[row][beatindex], 0);          
+            Tlc.set(beat_leds[row][beatindex], 0);
           }
+          Tlc.update();          
         }
         break;
       default:
