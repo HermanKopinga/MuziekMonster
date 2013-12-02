@@ -5,15 +5,15 @@
 */
  
 // pin definitions
-const int digital_pin[] = { 23, 22, 21,    20, 19, 18,    2, 0, 3,   1, 4, 5,   32, 33, 28, 29,      30, 31, 34, 35,     9, 10, 11, 12,     27,   36,   37};
-const int analog_pin[] = { A0, A2, A2, A2, A1, 0, 1, 2, 3, 4, 5, 6 }; // 5 on Teensy, 7 on 4051
+const int digital_pin[] = { 24, 23, 18,    19, 40, 41,    2, 0, 3,   13, 4, 5,   32, 33, 28, 29,      30, 31, 34, 35,     9, 10, 11, 12,     27,   36,   37};
+const int analog_pin[] = { A0, A1, 0, 1, 2, 3, 4, 5, 6, 7 }; // 2 on Teensy, 8 on 4051
  
 // variables for the states of the controls
 boolean digital_stored_state[27];
-int analog_stored_state[12];
+int analog_stored_state[10];
  
 // amount of change that constitutes sending a midi message
-const int analog_threshold = 240;
+const int analog_threshold = 10;
 const int analog_scale = 8;
 
 // 4051 stuff
@@ -78,23 +78,22 @@ const int digital_note[3][27] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 
 
 
 /*
+  -1 is een grapje, de eerste is pitchbend.
+   0 is ook een grapje, mode heeft geen CC.
+  21 Snare plekje
+  22 Bas effect
   28 Tempo
   70 Bass triplets
-  21 Snare plekje
   71 Accoorden effect
-  22 Bas effect
   73 Sample effect
   74 Master effect 1
   75 Master effect 2
-  -1 is een grapje, de eerste is pitchbend.
 */
-                                     
-const int analog_control[3][27] = {{ -1, 70, 21, 22, 71,  0,  74,  75,  28,  4,  73,  6 },
-                                   { -1, 70, 21, 22, 71,  0,  74,  75,  28,  4,  73,  6 },
-                                   { -1, 70, 21, 22, 71,  0,  74,  75,  28,  4,  73,  6 }};
+
+const int analog_control[10] = { 22,  71,   0,  70,  28,  21,  -1,  73,  74,  75 };
  
-const byte beat_leds[2][4] ={{  7,  8,  9, 10 },
-                             { 11, 12, 13, 14 }};
+const byte beat_leds[2][4] ={{  7,  9, 11, 13 },
+                             {  8, 10, 12, 14 }};
 byte beat_led_values[2][4] ={{  0,  0,  0,  0 },
                              {  0,  0,  0,  0 }};
 
@@ -119,23 +118,23 @@ void setup() {
   }
   
   // analog pins
-  for (b = 0; b<= 3; b++) {
+  for (b = 0; b<= 1; b++) {
     Serial.print("Setup: analog pin index ");
     Serial.print(b);
     Serial.print(" on teensy pin ");
     Serial.print(analog_pin[b]);
     Serial.print(" as MIDI CC ");
-    Serial.println(analog_control[mode][b]);
+    Serial.println(analog_control[b]);
     analog_stored_state[b] = 0;     
   }
   
-  for (b = 4; b<= 10; b++) {
+  for (b = 2; b<= 9; b++) {
     Serial.print("Setup: analog pin index ");
     Serial.print(b);
     Serial.print(" on 4051 pin ");
     Serial.print(analog_pin[b]);
     Serial.print(" as MIDI CC ");
-    Serial.println(analog_control[mode][b]);
+    Serial.println(analog_control[b]);
     analog_stored_state[b] = 0; 
   }
   
@@ -176,19 +175,12 @@ void loop() {
   }
 
   // analog pins
-  for (b = 0; b <= 4; b++) {
+  for (b = 0; b <= 1; b++) {
     analog_state = analogRead(analog_pin[b]);
     if (analog_state - analog_stored_state[b] >= analog_threshold || analog_stored_state[b] - analog_state >= analog_threshold) {
       int scaled_value = analog_state / analog_scale;
-      if (analog_pin[b] == A0) {
-      usbMIDI.sendPitchBend(analog_state * 16, 1);
-        Serial.print("Pitch ");
-      }
-      else {
-        usbMIDI.sendControlChange(analog_control[mode][b], scaled_value, midi_chan);
-      }
       Serial.print("analog value ");
-      Serial.print(analog_control[mode][b]); 
+      Serial.print(analog_control[b]); 
       Serial.print(": ");
       Serial.print(analog_state);
       Serial.print(" scaled: ");
@@ -197,8 +189,8 @@ void loop() {
     }
   }
 
-  // 4051 analog pins, 7 are connected.
-  for (b = 0; b <= 6; b++) {
+  // 4051 analog pins, 8 are connected.
+  for (b = 0; b <= 7; b++) {
 
     // select the bit  
     r0 = bitRead(b,0);
@@ -217,6 +209,9 @@ void loop() {
         Serial.print("Mode_analog: ");
         Serial.print(analog_state);
         mode = analog_state/174;
+        if (mode > 2) {
+          mode = 2;
+        }
         Serial.print(" mode result: ");
         Serial.print(mode);
         modeStored = analog_state;
@@ -239,18 +234,24 @@ void loop() {
       }
     }
     else {
-      if (analog_state - analog_stored_state[b+5] >= analog_threshold || analog_stored_state[b+5] - analog_state >= analog_threshold) {
+      if (analog_state - analog_stored_state[b+2] >= analog_threshold || analog_stored_state[b+2] - analog_state >= analog_threshold) {
         int scaled_value = analog_state / analog_scale;
   
-        usbMIDI.sendControlChange(analog_control[mode][b+5], scaled_value, midi_chan);
+        if (b == 4) {
+          usbMIDI.sendPitchBend(analog_state * 16, 1);
+        Serial.print("Pitch ");
+        }
+        else {
+          usbMIDI.sendControlChange(analog_control[b], scaled_value, midi_chan);
+        }    
   
         Serial.print("analog 4051 ");
-        Serial.print(analog_control[mode][b+5]); 
+        Serial.print(analog_control[b+2]); 
         Serial.print(": ");
         Serial.print(analog_state);
         Serial.print(" scaled: ");
         Serial.println(scaled_value);
-        analog_stored_state[b+5] = analog_state;
+        analog_stored_state[b+2] = analog_state;
       }  
     }  
   }
@@ -280,10 +281,10 @@ void loop() {
             lastbeat = 4;
           }
           Tlc.set(beat_leds[0][lastbeat - 1], beat_led_values[0][lastbeat - 1]);
-          Tlc.set(beat_leds[0][beat - 1], beat_led_values[0][beat - 1] + 128);
+          Tlc.set(beat_leds[0][beat - 1], beat_led_values[0][beat - 1] + 512);
 
           Tlc.set(beat_leds[1][lastbeat - 1], beat_led_values[1][lastbeat - 1]);
-          Tlc.set(beat_leds[1][beat - 1], beat_led_values[1][beat - 1] + 128);
+          Tlc.set(beat_leds[1][beat - 1], beat_led_values[1][beat - 1] + 512);
           Tlc.update();
           Serial.println(String("Beat: ") + beat + String(" Lastbeat: ") + lastbeat);
         }
@@ -305,12 +306,12 @@ void loop() {
           } 
           beat_led_values[row][beatindex] = 16 ;
           if (beat -1 == beatindex) {
-            Tlc.set(beat_leds[row][beatindex], 32);
+            Tlc.set(beat_leds[row][beatindex], 320);
           }
           else {
-            Tlc.set(beat_leds[row][beatindex], 16);
+            Tlc.set(beat_leds[row][beatindex], 160);
           }
-          Tlc.update();          
+          Tlc.update();
         }
         break;
       case 0: // NoteOff
@@ -334,12 +335,12 @@ void loop() {
           } 
           beat_led_values[row][beatindex] = 0 ;
           if (beat -1 == beatindex) {
-            Tlc.set(beat_leds[row][beatindex], 32);
+            Tlc.set(beat_leds[row][beatindex], 320);
           }
           else {
             Tlc.set(beat_leds[row][beatindex], 0);
           }
-          Tlc.update();          
+          Tlc.update();
         }
         break;
       default:
