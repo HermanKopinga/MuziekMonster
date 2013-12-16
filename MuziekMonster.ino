@@ -93,6 +93,8 @@ const int digital_note[3][27] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 
 
 const byte analog_control[10] = { 22,  71,   0,  70,  28,  21,  -1,  73,  74,  75 };
 const byte analog_active[10]  = {  1,   1,   1,   1,   1,   1,   1,   1,   1,   1 };
+
+const byte sample_leds[4] = { 0, 1, 13, 14 };
  
 const byte beat_leds[2][4] ={{  6,  5,  2,  1 },
                              {  4,  3,  8,  7 }};
@@ -156,7 +158,7 @@ void setup() {
  
 void loop() {
   int b = 0;
-  int type, note, velocity, channel, d1, d2, beatindex, row, analog_state;
+  int type, note, velocity, channel, d1, d2, beatindex, row, analog_state, sample;
   
   // digital pins
   for (b = 0; b <= 26; b++) {
@@ -171,6 +173,13 @@ void loop() {
         /*Serial.print("MIDI note on: ");*/
         Serial.print(" On: ");
         Serial.println(digital_note[mode][b]);
+        // Stop must be send twice to Ableton.
+        if (digital_note[mode][b] == 8) {
+          delay(100);
+          usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, midi_chan);
+          delay(100);
+          usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, midi_chan);          
+        }
       } else {
         usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, midi_chan);
         /*Serial.print("MIDI note off: ");
@@ -341,14 +350,26 @@ void loop() {
         // First 8 notes are triggers to turn on lights for drum computer.
         if (channel == 1) {
           switch (note) {
-            case 0:              beatindex = 0;              row = 0;              break;
-            case 1:              beatindex = 1;              row = 0;              break;
-            case 2:              beatindex = 2;              row = 0;              break;
-            case 3:              beatindex = 3;              row = 0;              break;
-            case 4:              beatindex = 0;              row = 1;              break;
-            case 5:              beatindex = 1;              row = 1;              break;
-            case 6:              beatindex = 2;              row = 1;              break;
-            case 7:              beatindex = 3;              row = 1;              break;
+            case  0:              beatindex = 0;              row = 0;              break;
+            case  1:              beatindex = 1;              row = 0;              break;
+            case  2:              beatindex = 2;              row = 0;              break;
+            case  3:              beatindex = 3;              row = 0;              break;
+            case  4:              beatindex = 0;              row = 1;              break;
+            case  5:              beatindex = 1;              row = 1;              break;
+            case  6:              beatindex = 2;              row = 1;              break;
+            case  7:              beatindex = 3;              row = 1;              break;
+            case 15:              sample = 0;                                       break;
+            case 14:              sample = 1;                                       break;
+            case 13:              sample = 2;                                       break;
+            case 12:              sample = 3;                                       break;
+            case 19:              sample = 0;                                       break;
+            case 18:              sample = 1;                                       break;
+            case 17:              sample = 2;                                       break;
+            case 16:              sample = 3;                                       break;
+            case 23:              sample = 0;                                       break;
+            case 22:              sample = 1;                                       break;
+            case 21:              sample = 2;                                       break;
+            case 20:              sample = 3;                                       break;            
             default:
               Serial.println("No action for this note.");
               break;
@@ -364,6 +385,11 @@ void loop() {
             else{
               Tlc.set(beat_leds[row][beatindex], Ledbit);
             }
+            Tlc.update();
+          }
+          // For the sampler notes
+          if (note > 10 && note < 24) {
+            Tlc.set(sample_leds[sample], Ledbit + Ledextra);
             Tlc.update();
           }
         }
