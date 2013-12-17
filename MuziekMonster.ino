@@ -71,11 +71,12 @@ const int midi_vel = 100;
 const int midi_chan = 1;
 
 int beat;
+bool abletonRunning;
 
                                      // Bas                     // Accoorden                // Drumcomputer                        // Samples         //Synth  // Start  //stop
-const int digital_note[3][27] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 31, 33,     0,  1,  2,  3,      4,  5,  6,  7,     15, 14, 13, 12,    61,      9,        8},
-                                  {  60, 62, 64, 65, 67, 69,    48, 50, 52, 53, 55, 57,     0,  1,  2,  3,      4,  5,  6,  7,     19, 18, 17, 16,    63,      10,       8},
-                                  {  84, 86, 88, 89, 91, 93,    72, 74, 76, 77, 79, 81,     0,  1,  2,  3,      4,  5,  6,  7,     23, 22, 21, 20,    66,      11,       8}};                                  
+const int digital_note[3][27] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 31, 33,     0,  1,  2,  3,      4,  5,  6,  7,     15, 14, 13, 96,    61,      9,        8},
+                                  {  60, 62, 64, 65, 67, 69,    48, 50, 52, 53, 55, 57,     0,  1,  2,  3,      4,  5,  6,  7,     19, 18, 17, 98,    63,      10,       8},
+                                  {  84, 86, 88, 89, 91, 93,    72, 74, 76, 77, 79, 81,     0,  1,  2,  3,      4,  5,  6,  7,     23, 22, 21, 100,    66,      11,       8}};                                  
 
 
 /*
@@ -94,7 +95,7 @@ const int digital_note[3][27] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 
 const byte analog_control[10] = { 22,  71,   0,  70,  28,  21,  -1,  73,  74,  75 };
 const byte analog_active[10]  = {  1,   1,   1,   1,   1,   1,   1,   1,   1,   1 };
 
-const byte sample_leds[4] = { 0, 1, 13, 14 };
+const byte sample_leds[4] = { 0, 9, 10, 15 };
  
 const byte beat_leds[2][4] ={{  6,  5,  2,  1 },
                              {  4,  3,  8,  7 }};
@@ -104,6 +105,14 @@ const int Ledoff = 0;
 const int Ledbit = 512;
 const int Ledextra  = 2500;
 
+
+void resetBeatLeds() {
+  int b;
+  for (b = 0; b <= 3; b++) {
+    Tlc.set(beat_leds[0][b], beat_led_values[0][b]);
+    Tlc.set(beat_leds[1][b], beat_led_values[1][b]);
+  } 
+}
 
 void setup() {
   Serial.begin(115200);
@@ -151,11 +160,11 @@ void setup() {
   pinMode(s1, OUTPUT);
   pinMode(s2, OUTPUT);  
   pinMode(analog4051, INPUT);
-  
-  // output pins
-  //ToDo: 5940 stuff goes here.
+
 }
  
+int samplechange,lastsample, currentsample;
+
 void loop() {
   int b = 0;
   int type, note, velocity, channel, d1, d2, beatindex, row, analog_state, sample;
@@ -166,6 +175,14 @@ void loop() {
     boolean state = digital_debouncer[b].read();
     if (state != digital_stored_state[b]) {
       if (state == false) {
+        // Restart Ableton if nessesary
+        if (!abletonRunning)
+        {
+          resetBeatLeds();
+          usbMIDI.sendNoteOn(digital_note[mode][25], midi_vel, midi_chan);
+          usbMIDI.sendNoteOff(digital_note[mode][25], midi_vel, midi_chan);
+          abletonRunning++;          
+        }
         // For identifying the buttons during setup.
         Serial.print("Pin: ");
         Serial.print(digital_pin[b]);
@@ -175,15 +192,50 @@ void loop() {
         Serial.println(digital_note[mode][b]);
         // Stop must be send twice to Ableton.
         if (digital_note[mode][b] == 8) {
+          resetBeatLeds();          
           delay(100);
           usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, midi_chan);
           delay(100);
-          usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, midi_chan);          
+          usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, midi_chan);
+          abletonRunning = 0;
         }
-      } else {
+        // Light led for single shot sample button.
+        if (digital_pin[b] == 12) {
+          Tlc.set(sample_leds[3], Ledbit);
+          Tlc.update();          
+        }
+/* ToDo: decide if we want this        // Dim leds for samples that will stop.
+        else if (currentsample == 0 && digital_pin[b] == 9) {
+          Serial.println("Dim sample led, shuts off at next beat.");
+          Tlc.set(sample_leds[currentsample], Ledbit);
+          Tlc.update();
+          lastsample = currentsample;
+          samplechange = samplechange + 10;          
+        }
+        else if (currentsample == 1 && digital_pin[b] == 10) {
+          Serial.println("Dim sample led, shuts off at next beat.");
+          Tlc.set(sample_leds[currentsample], Ledbit);
+          Tlc.update();
+          lastsample = currentsample;
+          samplechange = samplechange + 10;          
+        }         
+        else if (currentsample == 2 && digital_pin[b] == 11) {
+          Serial.println("Dim sample led, shuts off at next beat.");
+          Tlc.set(sample_leds[currentsample], Ledbit);
+          Tlc.update();
+          lastsample = currentsample;
+          samplechange = samplechange + 10;                            
+        }        */
+      } 
+      else {
         usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, midi_chan);
-        /*Serial.print("MIDI note off: ");
-        Serial.println(digital_note[b]);*/
+          /*Serial.print("MIDI note off: ");
+          Serial.println(digital_note[b]);*/
+        // Light led for single shot sample button.
+        if (digital_pin[b] == 12) {
+          Tlc.set(sample_leds[3], 0);
+          Tlc.update();          
+        }          
       }
       digital_stored_state[b] = !digital_stored_state[b];
     }
@@ -346,9 +398,24 @@ void loop() {
           Serial.println(String(" Beat: ") + beat + String(" Lastbeat: ") + lastbeat); */
         }
 
+        else if (channel == 1 && samplechange && note >= 9 && note <= 11) {
+          Serial.print("Samplechange ");
+          Serial.print(lastsample);
+          Serial.println(currentsample);
+          Tlc.set(sample_leds[currentsample], 4000);
+          if (samplechange > 9)
+          {
+            Tlc.set(sample_leds[lastsample], 0);
+            // Negative value to catch restarting the last stopped sample.
+            currentsample = lastsample = -1;
+          }
+          Tlc.update();
+          samplechange = 0;
+        }
+
         // Regular use for the drum computer.
         // First 8 notes are triggers to turn on lights for drum computer.
-        if (channel == 1) {
+        else if (channel == 1) {
           switch (note) {
             case  0:              beatindex = 0;              row = 0;              break;
             case  1:              beatindex = 1;              row = 0;              break;
@@ -371,11 +438,11 @@ void loop() {
             case 21:              sample = 2;                                       break;
             case 20:              sample = 3;                                       break;            
             default:
-              Serial.println("No action for this note.");
+//              Serial.println("No action for this note.");
               break;
           } 
           
-          // Only for the drum computer notes.
+          // For the drum computer notes.
           if (note < 8) {
             beat_led_values[row][beatindex] = Ledbit ;
             // If the current beat is turned on give immediate feedback.
@@ -387,10 +454,14 @@ void loop() {
             }
             Tlc.update();
           }
-          // For the sampler notes
-          if (note > 10 && note < 24) {
-            Tlc.set(sample_leds[sample], Ledbit + Ledextra);
-            Tlc.update();
+          
+          // For the sampler notes.
+          if (note > 11 && note < 24 && sample != currentsample) {
+              Serial.println("Dim sample led, full on at next beat.");
+              Tlc.set(sample_leds[sample], Ledbit);
+              Tlc.update();
+              currentsample = sample;
+              samplechange = samplechange + 1;
           }
         }
         break;
@@ -398,19 +469,31 @@ void loop() {
         note = usbMIDI.getData1();
         velocity = usbMIDI.getData2();
         channel = usbMIDI.getChannel();
-        Serial.println(String("In Note Off: ch=") + channel + ", note=" + note + ", velocity=" + velocity);
+//        Serial.println(String("In Note Off: ch=") + channel + ", note=" + note + ", velocity=" + velocity);
         if (channel == 1) {
           switch (note) {
-            case 0:              beatindex = 0;              row = 0;              break;
-            case 1:              beatindex = 1;              row = 0;              break;
-            case 2:              beatindex = 2;              row = 0;              break;
-            case 3:              beatindex = 3;              row = 0;              break;
-            case 4:              beatindex = 0;              row = 1;              break;
-            case 5:              beatindex = 1;              row = 1;              break;
-            case 6:              beatindex = 2;              row = 1;              break;
-            case 7:              beatindex = 3;              row = 1;              break;       
+            case  0:              beatindex = 0;              row = 0;              break;
+            case  1:              beatindex = 1;              row = 0;              break;
+            case  2:              beatindex = 2;              row = 0;              break;
+            case  3:              beatindex = 3;              row = 0;              break;
+            case  4:              beatindex = 0;              row = 1;              break;
+            case  5:              beatindex = 1;              row = 1;              break;
+            case  6:              beatindex = 2;              row = 1;              break;
+            case  7:              beatindex = 3;              row = 1;              break;       
+            case 15:              sample = 0;                                       break;
+            case 14:              sample = 1;                                       break;
+            case 13:              sample = 2;                                       break;
+            case 12:              sample = 3;                                       break;
+            case 19:              sample = 0;                                       break;
+            case 18:              sample = 1;                                       break;
+            case 17:              sample = 2;                                       break;
+            case 16:              sample = 3;                                       break;
+            case 23:              sample = 0;                                       break;
+            case 22:              sample = 1;                                       break;
+            case 21:              sample = 2;                                       break;
+            case 20:              sample = 3;                                       break;            
             default:
-              Serial.println("No action for this note");
+//              Serial.println("No action for this note");
               break;
           } 
           
@@ -426,6 +509,14 @@ void loop() {
             }
             Tlc.update();
           }
+          // For the sampler notes
+          if (note > 11 && note < 24) {
+            Serial.println("Dim sample led, shuts off at next beat.");
+            Tlc.set(sample_leds[sample], Ledbit);
+            Tlc.update();
+            lastsample = sample;
+            samplechange = samplechange + 10;
+          }          
         }
         break;
       default:
