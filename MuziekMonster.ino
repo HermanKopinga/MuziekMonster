@@ -1,9 +1,6 @@
 #include <Bounce.h>
 #include "Tlc5940.h"
- 
-/*
-*/
- 
+  
 // pin definitions
 const int digital_pin[] = { 24, 23, 18,    19, 40, 41,    2, 0, 3,   13, 4, 5,   32, 33, 28, 29,      30, 31, 34, 35,     9, 10, 11, 12,     27,   43,   44};
 const int analog_pin[] = { A0, A1, 0, 1, 2, 3, 4, 5, 6, 7 }; // 2 on Teensy, 8 on 4051
@@ -73,10 +70,10 @@ const int midi_chan = 1;
 int beat;
 bool abletonRunning;
 
-                                     // Bas                     // Accoorden                // Drumcomputer                        // Samples         //Synth  // Start  //stop
-const int digital_note[3][27] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 31, 33,     0,  1,  2,  3,      4,  5,  6,  7,     15, 14, 13, 96,    61,      9,        8},
-                                  {  60, 62, 64, 65, 67, 69,    48, 50, 52, 53, 55, 57,     0,  1,  2,  3,      4,  5,  6,  7,     19, 18, 17, 98,    63,      10,       8},
-                                  {  84, 86, 88, 89, 91, 93,    72, 74, 76, 77, 79, 81,     0,  1,  2,  3,      4,  5,  6,  7,     23, 22, 21, 100,    66,      11,       8}};                                  
+                                     // Bas                     // Accoorden                // Drumcomputer                        // Samples         //Synth  //Sampletje   //Stop    //Start
+const int digital_note[3][28] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 31, 33,     0,  1,  2,  3,      4,  5,  6,  7,     15, 14, 13, 12,    61,      96,           8,        9  },
+                                  {  60, 62, 64, 65, 67, 69,    48, 50, 52, 53, 55, 57,     0,  1,  2,  3,      4,  5,  6,  7,     19, 18, 17, 16,    63,      98,           8,        10 },
+                                  {  84, 86, 88, 89, 91, 93,    72, 74, 76, 77, 79, 81,     0,  1,  2,  3,      4,  5,  6,  7,     23, 22, 21, 20,    66,      100,          8,        11 }};                                  
 
 
 /*
@@ -93,7 +90,6 @@ const int digital_note[3][27] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 
 */
 
 const byte analog_control[10] = { 22,  71,   0,  70,  28,  21,  -1,  73,  74,  75 };
-const byte analog_active[10]  = {  1,   1,   1,   1,   1,   1,   1,   1,   1,   1 };
 
 const byte sample_leds[4] = { 0, 9, 10, 15 };
  
@@ -102,8 +98,8 @@ const byte beat_leds[2][4] ={{  6,  5,  2,  1 },
 int beat_led_values[2][4]  ={{  0,  0,  0,  0 },
                              {  0,  0,  0,  0 }};  
 const int Ledoff = 0;
-const int Ledbit = 512;
-const int Ledextra  = 2500;
+const int Leddim = 512;
+const int Ledbright  = 2500;
 
 
 void resetBeatLeds() {
@@ -176,16 +172,22 @@ void loop() {
     if (state != digital_stored_state[b]) {
       if (state == false) {
         // Restart Ableton if nessesary
-        if (!abletonRunning)
-        {
+        if (!abletonRunning) {
           resetBeatLeds();
-          usbMIDI.sendNoteOn(digital_note[mode][25], midi_vel, midi_chan);
-          usbMIDI.sendNoteOff(digital_note[mode][25], midi_vel, midi_chan);
+          usbMIDI.sendNoteOn(digital_note[mode][27], midi_vel, midi_chan);
+          delay(100);
+          usbMIDI.sendNoteOff(digital_note[mode][27], midi_vel, midi_chan);
           abletonRunning++;          
         }
         // For identifying the buttons during setup.
         Serial.print("Pin: ");
-        Serial.print(digital_pin[b]);
+        Serial.println(digital_pin[b]);        
+
+        // Start is done differently :)
+/*        if (digital_pin[b] == 43) {
+//          usbMIDI.sendProgramChange(0,1);
+        }
+        else {*/
         usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, midi_chan);
         /*Serial.print("MIDI note on: ");*/
         Serial.print(" On: ");
@@ -201,31 +203,9 @@ void loop() {
         }
         // Light led for single shot sample button.
         if (digital_pin[b] == 12) {
-          Tlc.set(sample_leds[3], Ledbit);
+          Tlc.set(sample_leds[3], Leddim);
           Tlc.update();          
         }
-/* ToDo: decide if we want this        // Dim leds for samples that will stop.
-        else if (currentsample == 0 && digital_pin[b] == 9) {
-          Serial.println("Dim sample led, shuts off at next beat.");
-          Tlc.set(sample_leds[currentsample], Ledbit);
-          Tlc.update();
-          lastsample = currentsample;
-          samplechange = samplechange + 10;          
-        }
-        else if (currentsample == 1 && digital_pin[b] == 10) {
-          Serial.println("Dim sample led, shuts off at next beat.");
-          Tlc.set(sample_leds[currentsample], Ledbit);
-          Tlc.update();
-          lastsample = currentsample;
-          samplechange = samplechange + 10;          
-        }         
-        else if (currentsample == 2 && digital_pin[b] == 11) {
-          Serial.println("Dim sample led, shuts off at next beat.");
-          Tlc.set(sample_leds[currentsample], Ledbit);
-          Tlc.update();
-          lastsample = currentsample;
-          samplechange = samplechange + 10;                            
-        }        */
       } 
       else {
         usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, midi_chan);
@@ -243,108 +223,104 @@ void loop() {
 
   // analog pins
   for (b = 0; b <= 1; b++) {
-    // Crude method to ignore analog inputs (some are noisy during development).
-    if (analog_active[b]) {
-      analog_state = analogRead(analog_pin[b]);
-      if (analog_state - analog_stored_state[b] >= analog_threshold || analog_stored_state[b] - analog_state >= analog_threshold) {
-        int scaled_value = analog_state / analog_scale;
-        Serial.print("analog value ");
-        Serial.print(analog_control[b]); 
-        Serial.print(": ");
-        Serial.print(analog_state);
-        Serial.print(" scaled: ");
-        Serial.println(scaled_value);
-        analog_stored_state[b] = analog_state;
-        usbMIDI.sendControlChange(analog_control[b], scaled_value, midi_chan);
-      }
+    analog_state = analogRead(analog_pin[b]);
+    if (analog_state - analog_stored_state[b] >= analog_threshold || analog_stored_state[b] - analog_state >= analog_threshold) {
+      int scaled_value = analog_state / analog_scale;
+      Serial.print("analog value ");
+      Serial.print(analog_control[b]); 
+      Serial.print(": ");
+      Serial.print(analog_state);
+      Serial.print(" scaled: ");
+      Serial.println(scaled_value);
+      analog_stored_state[b] = analog_state;
+      usbMIDI.sendControlChange(analog_control[b], scaled_value, midi_chan);
     }
   }
 
   // 4051 analog pins, 8 are connected.
   for (b = 0; b <= 7; b++) {
-    // Crude method to ignore analog inputs (some are noisy during development).
-    if (analog_active[b+2]) {
-        
-      // select the bit  
-      r0 = bitRead(b,0);
-      r1 = bitRead(b,1);
-      r2 = bitRead(b,2);
-  
-      digitalWrite(s0, r0);
-      digitalWrite(s1, r1);
-      digitalWrite(s2, r2);
-  
-      analog_state = analogRead(analog4051);    
-  
-      if (b == 0) { 
-        // Read Mode Switch.
-        if (analog_state - modeStored >= analog_threshold || modeStored - analog_state >= analog_threshold) {
-          Serial.print("Mode_analog: ");
-          Serial.print(analog_state);
-          mode = analog_state/400;
-          if (mode > 2) {
-            mode = 2;
-          }
-          Serial.print(" mode result: ");
-          Serial.print(mode);
-          modeStored = analog_state;
-          Serial.print(". Sending: ");
-          Serial.print(digital_note[mode][26]);
-          Serial.print(" "); 
-          Serial.print(digital_note[mode][26]);
-          Serial.print(" ");
-          Serial.println(digital_note[mode][25]);
-          usbMIDI.sendNoteOn(digital_note[mode][26], midi_vel, midi_chan);
-          usbMIDI.sendNoteOff(digital_note[mode][26], midi_vel, midi_chan);
-          usbMIDI.send_now();
-          delay(100);
-          usbMIDI.sendNoteOn(digital_note[mode][26], midi_vel, midi_chan);
-          usbMIDI.sendNoteOff(digital_note[mode][26], midi_vel, midi_chan);
-          usbMIDI.send_now();        
-          delay(100);        
-          usbMIDI.sendNoteOn(digital_note[mode][25], midi_vel, midi_chan);      
-          usbMIDI.sendNoteOff(digital_note[mode][25], midi_vel, midi_chan);        
+    // select the bit  
+    r0 = bitRead(b,0);
+    r1 = bitRead(b,1);
+    r2 = bitRead(b,2);
+
+    digitalWrite(s0, r0);
+    digitalWrite(s1, r1);
+    digitalWrite(s2, r2);
+
+    analog_state = analogRead(analog4051);    
+
+    if (b == 0) { 
+      // Read Mode Switch.
+      if (analog_state - modeStored >= analog_threshold || modeStored - analog_state >= analog_threshold) {
+        Serial.print("Mode_analog: ");
+        Serial.print(analog_state);
+        mode = analog_state/400;
+        if (mode > 2) {
+          mode = 2;
         }
+        Serial.print(" mode result: ");
+        Serial.print(mode);
+        modeStored = analog_state;
+        Serial.print(". Sending: ");
+        Serial.print(digital_note[mode][26]);
+        Serial.print(" "); 
+        Serial.print(digital_note[mode][26]);
+        Serial.print(" ");
+        Serial.println(digital_note[mode][27]);
+        usbMIDI.sendNoteOn(digital_note[mode][26], midi_vel, midi_chan);
+        delay(100);        
+        usbMIDI.sendNoteOff(digital_note[mode][26], midi_vel, midi_chan);
+        usbMIDI.send_now();
+        delay(100);
+        usbMIDI.sendNoteOn(digital_note[mode][26], midi_vel, midi_chan);
+        delay(100);        
+        usbMIDI.sendNoteOff(digital_note[mode][26], midi_vel, midi_chan);
+        usbMIDI.send_now();        
+        delay(100);        
+        usbMIDI.sendNoteOn(digital_note[mode][27], midi_vel, midi_chan);      
+        delay(100);        
+        usbMIDI.sendNoteOff(digital_note[mode][27], midi_vel, midi_chan);        
       }
-      if (b == 4 && !digital_debouncer[24].read()) {
-        // The pitchbend is read differently :-)
-        if (analog_state - analog_stored_state[b+2] >= pitch_threshold || analog_stored_state[b+2] - analog_state >= pitch_threshold) {
-          if (analog_state < 176) {
-            analog_state = 176;
-          }
-          if (analog_state > 999) {
-            analog_state = 999;
-          }
+    }
+    if (b == 4 && !digital_debouncer[24].read()) {
+      // The pitchbend is read differently, noise is considered 'musical glitches' so all state changes pass trough :-)
+      if (analog_state - analog_stored_state[b+2] >= pitch_threshold || analog_stored_state[b+2] - analog_state >= pitch_threshold) {
+        analog_state = constrain(analog_state, 176,999);
+        
+        // Pitchbend has bigger reach, so multiply by 16 and the phisical fader is limited a bit, correct for that with map().
+        usbMIDI.sendPitchBend(map(analog_state,175,1000,0,1024) * 16, 1);
 
-          // Pitchbend has bigger reach, so multiply by 16 and the phisical fader is limited a bit, correct for that with map().
-          usbMIDI.sendPitchBend(map(analog_state,175,1000,0,1024) * 16, 1);
-
-          Serial.print("Pitch ");    
-          Serial.print("analog 4051 ");
-          Serial.print(analog_control[b+2]); 
-          Serial.print(": ");
-          Serial.print(analog_state);
-          Serial.print(" scaled: ");
-          Serial.println(analog_state * 16);
-          analog_stored_state[b+2] = analog_state;
-        }                
-      }
-      // The rest are midi controls, 4 is an exception, it's the pitchbend.
-      else {
-        if (analog_state - analog_stored_state[b+2] >= analog_threshold || analog_stored_state[b+2] - analog_state >= analog_threshold) {
-          int scaled_value = analog_state / analog_scale;
-          
-          usbMIDI.sendControlChange(analog_control[b+2], scaled_value, midi_chan);
-      
-          Serial.print("analog 4051 ");
-          Serial.print(analog_control[b+2]); 
-          Serial.print(": ");
-          Serial.print(analog_state);
-          Serial.print(" scaled: ");
-          Serial.println(scaled_value);
-          analog_stored_state[b+2] = analog_state;
-        }  
-      }
+        Serial.print("Pitch ");    
+        Serial.print("analog 4051 ");
+        Serial.print(analog_control[b+2]); 
+        Serial.print(": ");
+        Serial.print(analog_state);
+        Serial.print(" scaled: ");
+        Serial.println(analog_state * 16);
+        analog_stored_state[b+2] = analog_state;
+      }                
+    }
+    // The rest are regular midi controls.
+    else {
+      if (analog_state - analog_stored_state[b+2] >= analog_threshold || analog_stored_state[b+2] - analog_state >= analog_threshold) {
+        int scaled_value = analog_state / analog_scale;
+        
+        // Master effect 1 has a different top limit.
+        if (b == 6) {
+          scaled_value = constrain(scaled_value, 11, 120);
+          scaled_value = map(scaled_value, 11, 120, 0, 127);
+        }
+        usbMIDI.sendControlChange(analog_control[b+2], scaled_value, midi_chan);
+    
+        Serial.print("analog 4051 ");
+        Serial.print(analog_control[b+2]); 
+        Serial.print(": ");
+        Serial.print(analog_state);
+        Serial.print(" scaled: ");
+        Serial.println(scaled_value);
+        analog_stored_state[b+2] = analog_state;
+      }  
     }  
   }
 
@@ -372,18 +348,31 @@ void loop() {
           beat = (velocity / 32) + 1;
           // Set the last beat
           int lastbeat = beat - 1;
+
           if (beat == 1) {
             lastbeat = 4;
+            // The 'window' and stop button are lit on the first beat.
+            analogWrite(16,255);
+            // TLC output 14 is the stop button LED.
+            Tlc.set(14,Ledbright);            
+          }
+          else {
+            // The 'window' and stop button are lit on the first beat.
+            analogWrite(16,0);
+            Tlc.set(13,Ledoff);
+            Tlc.set(14,Ledoff);            
           }
           
           // Turn down the leds from the previous beat to their normal level.
           Tlc.set(beat_leds[0][lastbeat - 1], beat_led_values[0][lastbeat - 1]);
           Tlc.set(beat_leds[1][lastbeat - 1], beat_led_values[1][lastbeat - 1]);
           // Turn up the leds from the current beat.
-          Tlc.set(beat_leds[0][beat - 1], beat_led_values[0][beat - 1] + Ledextra);
-          Tlc.set(beat_leds[1][beat - 1], beat_led_values[1][beat - 1] + Ledextra);
+          Tlc.set(beat_leds[0][beat - 1], beat_led_values[0][beat - 1] + Ledbright);
+          Tlc.set(beat_leds[1][beat - 1], beat_led_values[1][beat - 1] + Ledbright);
           
           Tlc.update();
+          
+          
           
           // Debugging information, I was confused.
 /*          Serial.print(String("Values: ") + beat_led_values[0][0]);
@@ -444,13 +433,13 @@ void loop() {
           
           // For the drum computer notes.
           if (note < 8) {
-            beat_led_values[row][beatindex] = Ledbit ;
+            beat_led_values[row][beatindex] = Leddim ;
             // If the current beat is turned on give immediate feedback.
             if (beat -1 == beatindex) {
-              Tlc.set(beat_leds[row][beatindex], Ledbit + Ledextra);
+              Tlc.set(beat_leds[row][beatindex], Leddim + Ledbright);
             }
             else{
-              Tlc.set(beat_leds[row][beatindex], Ledbit);
+              Tlc.set(beat_leds[row][beatindex], Leddim);
             }
             Tlc.update();
           }
@@ -458,7 +447,7 @@ void loop() {
           // For the sampler notes.
           if (note > 11 && note < 24 && sample != currentsample) {
               Serial.println("Dim sample led, full on at next beat.");
-              Tlc.set(sample_leds[sample], Ledbit);
+              Tlc.set(sample_leds[sample], Leddim);
               Tlc.update();
               currentsample = sample;
               samplechange = samplechange + 1;
@@ -502,7 +491,7 @@ void loop() {
             beat_led_values[row][beatindex] = Ledoff;
             // If the current beat is turned off give immediate feedback.          
             if (beat -1 == beatindex) {
-              Tlc.set(beat_leds[row][beatindex], Ledextra);
+              Tlc.set(beat_leds[row][beatindex], Ledbright);
             }
             else {
               Tlc.set(beat_leds[row][beatindex], Ledoff);
@@ -512,7 +501,7 @@ void loop() {
           // For the sampler notes
           if (note > 11 && note < 24) {
             Serial.println("Dim sample led, shuts off at next beat.");
-            Tlc.set(sample_leds[sample], Ledbit);
+            Tlc.set(sample_leds[sample], Leddim);
             Tlc.update();
             lastsample = sample;
             samplechange = samplechange + 10;
