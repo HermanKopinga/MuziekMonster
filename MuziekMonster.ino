@@ -1,5 +1,7 @@
 #include <Bounce.h>
 #include "Tlc5940.h"
+
+
   
 // pin definitions
 const int digital_pin[] = { 24, 23, 18,    19, 40, 41,    2, 0, 3,   13, 4, 5,   32, 33, 28, 29,      30, 31, 34, 35,     9, 10, 11, 12,     27,   43,   44};
@@ -25,14 +27,15 @@ bool r2 = 0;
  
 // Debounce
 long debounceDelay = 20;
+long debounceBassDelay = 70;
  
 Bounce digital_debouncer[] = {
-      Bounce(digital_pin[0], debounceDelay),
-      Bounce(digital_pin[1], debounceDelay),
-      Bounce(digital_pin[2], debounceDelay),
-      Bounce(digital_pin[3], debounceDelay),
-      Bounce(digital_pin[4], debounceDelay),
-      Bounce(digital_pin[5], debounceDelay),
+      Bounce(digital_pin[0], debounceBassDelay),
+      Bounce(digital_pin[1], debounceBassDelay),
+      Bounce(digital_pin[2], debounceBassDelay),
+      Bounce(digital_pin[3], debounceBassDelay),
+      Bounce(digital_pin[4], debounceBassDelay),
+      Bounce(digital_pin[5], debounceBassDelay),
       Bounce(digital_pin[6], debounceDelay),
       Bounce(digital_pin[7], debounceDelay),
       Bounce(digital_pin[8], debounceDelay),
@@ -51,7 +54,7 @@ Bounce digital_debouncer[] = {
       Bounce(digital_pin[21], debounceDelay),
       Bounce(digital_pin[22], debounceDelay),
       Bounce(digital_pin[23], debounceDelay),
-      Bounce(digital_pin[24], debounceDelay),
+      Bounce(digital_pin[24], 40),
       Bounce(digital_pin[25], debounceDelay),
       Bounce(digital_pin[26], debounceDelay)
 };
@@ -77,6 +80,7 @@ const int digital_note[3][28] =  {{  36, 38, 40, 41, 43, 45,    24, 26, 28, 29, 
 
 
 /*
+  Analog controls:
   -1 is een grapje, de eerste is pitchbend voor de Synth.
    0 is ook een grapje, mode heeft geen CC.
   21 Drum snare delay
@@ -160,6 +164,9 @@ void setup() {
 }
  
 int samplechange,lastsample, currentsample;
+// Bij knopdruk, controleer of al eentje dim, als dim: dan uit. Daarna gedrukte knop dim aan.
+// 
+
 
 void loop() {
   int b = 0;
@@ -179,20 +186,16 @@ void loop() {
           usbMIDI.sendNoteOff(digital_note[mode][27], midi_vel, midi_chan);
           abletonRunning++;          
         }
-        // For identifying the buttons during setup.
+
+        // For identifying the buttons during setup & maintainance.
         Serial.print("Pin: ");
         Serial.println(digital_pin[b]);        
 
-        // Start is done differently :)
-/*        if (digital_pin[b] == 43) {
-//          usbMIDI.sendProgramChange(0,1);
-        }
-        else {*/
         usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, midi_chan);
         /*Serial.print("MIDI note on: ");*/
         Serial.print(" On: ");
         Serial.println(digital_note[mode][b]);
-        // Stop must be send twice to Ableton.
+        // Stop must be sent twice to Ableton.
         if (digital_note[mode][b] == 8) {
           resetBeatLeds();          
           delay(100);
@@ -201,19 +204,20 @@ void loop() {
           usbMIDI.sendNoteOn(digital_note[mode][b], midi_vel, midi_chan);
           abletonRunning = 0;
         }
-        // Light led for single shot sample button.
-        if (digital_pin[b] == 12) {
-          Tlc.set(sample_leds[3], Leddim);
+        
+        // Light led for blue (single shot) sample button.
+        if (digital_pin[b] == 43) {
+          Tlc.set(13, Leddim + Ledbright);
           Tlc.update();          
         }
       } 
       else {
+        // Note off
         usbMIDI.sendNoteOff(digital_note[mode][b], midi_vel, midi_chan);
-          /*Serial.print("MIDI note off: ");
-          Serial.println(digital_note[b]);*/
-        // Light led for single shot sample button.
-        if (digital_pin[b] == 12) {
-          Tlc.set(sample_leds[3], 0);
+
+// ToDo:        // Turn off led for blue (single shot) sample button.
+        if (digital_pin[b] == 43 && digital_note[mode][b] >= 96 && digital_note[mode][b] <= 100) {
+          Tlc.set(13, 0);
           Tlc.update();          
         }          
       }
@@ -226,6 +230,21 @@ void loop() {
     analog_state = analogRead(analog_pin[b]);
     if (analog_state - analog_stored_state[b] >= analog_threshold || analog_stored_state[b] - analog_state >= analog_threshold) {
       int scaled_value = analog_state / analog_scale;
+
+      // 0 Bass 
+      if (b == 0) {
+        // 900 - 530
+        scaled_value = constrain(analog_state, 535, 900);
+        scaled_value = map(scaled_value, 535, 900, 0, 127);
+      }
+      // 1 Accoord 
+      if (b == 1) {
+        // 760 - 540
+        scaled_value = constrain(analog_state, 540, 760);
+        scaled_value = map(scaled_value, 540, 760, 0, 127);          
+      }        
+
+
       Serial.print("analog value ");
       Serial.print(analog_control[b]); 
       Serial.print(": ");
@@ -291,6 +310,7 @@ void loop() {
         // Pitchbend has bigger reach, so multiply by 16 and the phisical fader is limited a bit, correct for that with map().
         usbMIDI.sendPitchBend(map(analog_state,175,1000,0,1024) * 16, 1);
 
+        /*
         Serial.print("Pitch ");    
         Serial.print("analog 4051 ");
         Serial.print(analog_control[b+2]); 
@@ -298,6 +318,7 @@ void loop() {
         Serial.print(analog_state);
         Serial.print(" scaled: ");
         Serial.println(analog_state * 16);
+        */
         analog_stored_state[b+2] = analog_state;
       }                
     }
@@ -306,11 +327,20 @@ void loop() {
       if (analog_state - analog_stored_state[b+2] >= analog_threshold || analog_stored_state[b+2] - analog_state >= analog_threshold) {
         int scaled_value = analog_state / analog_scale;
         
+        // 5 Sample
+        if (b == 5) {
+          // 975 - 720
+          scaled_value = constrain(analog_state, 720, 975);
+          scaled_value = map(scaled_value, 720, 975, 0, 127);          
+        }        
         // Master effect 1 has a different top limit.
         if (b == 6) {
           scaled_value = constrain(scaled_value, 11, 120);
           scaled_value = map(scaled_value, 11, 120, 0, 127);
         }
+
+        
+        
         usbMIDI.sendControlChange(analog_control[b+2], scaled_value, midi_chan);
     
         Serial.print("analog 4051 ");
@@ -357,12 +387,13 @@ void loop() {
             Tlc.set(14,Ledbright);            
           }
           else {
-            // The 'window' and stop button are lit on the first beat.
+            // The 'window' and stop button are turned off.
             analogWrite(16,0);
             Tlc.set(13,Ledoff);
             Tlc.set(14,Ledoff);            
           }
           
+          // Beat leds in drum computer.
           // Turn down the leds from the previous beat to their normal level.
           Tlc.set(beat_leds[0][lastbeat - 1], beat_led_values[0][lastbeat - 1]);
           Tlc.set(beat_leds[1][lastbeat - 1], beat_led_values[1][lastbeat - 1]);
@@ -371,8 +402,6 @@ void loop() {
           Tlc.set(beat_leds[1][beat - 1], beat_led_values[1][beat - 1] + Ledbright);
           
           Tlc.update();
-          
-          
           
           // Debugging information, I was confused.
 /*          Serial.print(String("Values: ") + beat_led_values[0][0]);
@@ -386,12 +415,14 @@ void loop() {
           Serial.print(String("Beatled: ") + beat_leds[1][beat - 1]);
           Serial.println(String(" Beat: ") + beat + String(" Lastbeat: ") + lastbeat); */
         }
-
-        else if (channel == 1 && samplechange && note >= 9 && note <= 11) {
+        
+/*        // The sample buttons & LEDS
+        // These are one shot samples now, different approach needed.
+        else if (channel == 1 && samplechange && note >= 9 && note <= 12) {
           Serial.print("Samplechange ");
           Serial.print(lastsample);
           Serial.println(currentsample);
-          Tlc.set(sample_leds[currentsample], 4000);
+          Tlc.set(sample_leds[currentsample], Leddim + Ledbright);
           if (samplechange > 9)
           {
             Tlc.set(sample_leds[lastsample], 0);
@@ -400,7 +431,7 @@ void loop() {
           }
           Tlc.update();
           samplechange = 0;
-        }
+        }*/
 
         // Regular use for the drum computer.
         // First 8 notes are triggers to turn on lights for drum computer.
